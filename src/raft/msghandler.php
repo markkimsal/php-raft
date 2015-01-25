@@ -56,7 +56,7 @@ class Raft_Msghandler {
 			if ($term > $node->currentTerm) {
 				$p = $node->findPeer($from);
 				if (!$p) return;
-				Raft_Log::log( sprintf('[%s] casting election for %s @t%s', $node->name, $from, $term), 'D');
+				Raft_Log::log( sprintf('[%s] casting vote for %s @t%s', $node->name, $from, $term), 'D');
 				$p->sendVote($from, $term, 0);
 				$node->currentTerm = $term;
 				$node->state = 'follower';

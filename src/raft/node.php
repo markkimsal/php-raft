@@ -113,13 +113,13 @@ class Raft_Node {
 		$mt = microtime(true);
 		if($mt > $this->hb_at) {
 		//Raft_Log::log( sprintf("[%s] %0.4f  %0.4f", $this->name, $mt, $this->hb_at), 'D');
-			if ($this->isFollower()) {
+			if ($this->isFollower() || $this->isCandidate()) {
+				$this->currentTerm++;
+				$this->state = 'candidate';
 				foreach ($this->listPeers as $_p) {
-					$this->currentTerm++;
 					Raft_Log::log( sprintf("[%s] sending election to %s", $this->name, $_p->endpoint), 'D');
 					$_p->sendElection($this->conn->endpoint,  $this->currentTerm, 0, 0);
 				}
-				$this->state = 'candidate';
 			}
 
 			if ($this->isLeader()) {
@@ -170,6 +170,10 @@ class Raft_Node {
 
 	public function isLeader() {
 		return $this->state == 'leader';
+	}
+
+	public function isCandidate() {
+		return $this->state == 'candidate';
 	}
 
 	public function setLeaderNode($ep) {
