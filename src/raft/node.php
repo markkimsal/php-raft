@@ -31,7 +31,7 @@ define('LE_INTERVAL', 1);
 include_once(dirname(__FILE__).'/connection.php');
 include_once(dirname(__FILE__).'/peerconnection.php');
 include_once(dirname(__FILE__).'/msghandler.php');
-include_once(dirname(__FILE__).'/log.php');
+include_once(dirname(__FILE__).'/../helper/log.php');
 include_once(dirname(__FILE__).'/zmsg.php');
 
 class Raft_Node {
