@@ -26,4 +26,15 @@ class Raft_Log_Test extends PHPUnit_Framework_TestCase {
 		$this->assertEquals(NULL, $this->log->getPendingEntry());
 	}
 
+	public function test_commit_saves_correct_term() {
+		$this->assertEquals(0, $this->log->getCommitIndex());
+		$this->log->appendEntry('add', 2);
+		$this->log->commitEntry();
+
+		$this->log->appendEntry('add', 3);
+		$this->log->commitEntry();
+
+		$this->assertEquals(2, $this->log->getTermForIndex(0));
+		$this->assertEquals(3, $this->log->getTermForIndex(1));
+	}
 }
