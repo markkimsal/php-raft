@@ -74,12 +74,12 @@ class Raft_Node {
 	}
 
 	public function begin($endpoint) {
-		Raft_Log::log(sprintf("[%s] binding dealer connection to %s ...", $this->name, $endpoint), 'D');
+		Raft_Logger::log(sprintf("[%s] binding dealer connection to %s ...", $this->name, $endpoint), 'D');
 		$this->conn->clusterSocket($endpoint);
 	}
 
 	public function addPeer($endpoint) {
-		Raft_Log::log(sprintf("[%s] opening router connection to %s ...", $this->name, $endpoint), 'D');
+		Raft_Logger::log(sprintf("[%s] opening router connection to %s ...", $this->name, $endpoint), 'D');
 		$connPeer =  new Raft_PeerConnection();
 		$connPeer->connect($endpoint);
 		$this->listPeers[$endpoint] = $connPeer;
@@ -95,7 +95,7 @@ class Raft_Node {
 
 
 	public function poll() {
-//		Raft_Log::log( sprintf("[%s] polling wire ...", $this->name), 'D');
+//		Raft_Logger::log( sprintf("[%s] polling wire ...", $this->name), 'D');
 		$read = $write = array();
 		$poll = new ZMQPoll();
 		$poll->add($this->conn->sockCluster, ZMQ::POLL_IN);
@@ -103,7 +103,7 @@ class Raft_Node {
 		$events = $poll->poll($read, $write, HB_INTERVAL * 100 );
 
 		if($events > 0) {
-//			Raft_Log::log( "got events from wire ...", 'D');
+//			Raft_Logger::log( "got events from wire ...", 'D');
 
 			foreach($read as $socket) {
 				$zmsg = new Zmsg($socket);
@@ -112,7 +112,7 @@ class Raft_Node {
 				// BACKEND
 				//  Handle worker activity on backend
 				if($socket === $this->conn->sockCluster) {
-//					Raft_Log::log( sprintf("[%s] Cluster IN %s", $this->name, $zmsg), 'D' );
+//					Raft_Logger::log( sprintf("[%s] Cluster IN %s", $this->name, $zmsg), 'D' );
 					$this->handler->onMsg($zmsg, $this);
 				}
 			}
@@ -120,11 +120,11 @@ class Raft_Node {
 
 		$mt = microtime(true);
 		if($mt > $this->hb_at) {
-		//Raft_Log::log( sprintf("[%s] %0.4f  %0.4f", $this->name, $mt, $this->hb_at), 'D');
+		//Raft_Logger::log( sprintf("[%s] %0.4f  %0.4f", $this->name, $mt, $this->hb_at), 'D');
 			if ($this->isFollower() || $this->isCandidate()) {
 				$this->transitionToCandidate();
 				foreach ($this->listPeers as $_p) {
-					Raft_Log::log( sprintf("[%s] sending election to %s", $this->name, $_p->endpoint), 'D');
+					Raft_Logger::log( sprintf("[%s] sending election to %s", $this->name, $_p->endpoint), 'D');
 					$_p->sendElection($this->conn->endpoint,  $this->currentTerm, 0, 0);
 				}
 			}
@@ -144,7 +144,7 @@ class Raft_Node {
 		} else {
 			$this->hb_at = $mt + (HB_INTERVAL - (HB_INTERVAL * rand(0.0, 0.40)));
 		}
-//		Raft_Log::log( sprintf("[%s] %0.4f  %0.4f *", $this->name, $mt, $this->hb_at), 'D');
+//		Raft_Logger::log( sprintf("[%s] %0.4f  %0.4f *", $this->name, $mt, $this->hb_at), 'D');
 	}
 
 	/**
@@ -166,7 +166,7 @@ class Raft_Node {
 
 	public function pingPeers() {
 		foreach ($this->listPeers as $_p) {
-			Raft_Log::log( sprintf("[%s] sending hb to %s", $this->name, $_p->endpoint), 'D');
+			Raft_Logger::log( sprintf("[%s] sending hb to %s", $this->name, $_p->endpoint), 'D');
 			$_p->hb();
 		}
 	}

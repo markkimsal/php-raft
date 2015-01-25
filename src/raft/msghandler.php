@@ -36,13 +36,13 @@ class Raft_Msghandler {
 		if ($type == 'HEARTBEAT') {
 			$node->resetHb();
 			$node->votes = 0;
-			Raft_Log::log( sprintf('[%s] got hb', $node->name), 'D');
+			Raft_Logger::log( sprintf('[%s] got hb', $node->name), 'D');
 		}
 
 		if ($type == 'VOTE') {
 			$node->votes++;
 			if ($node->votes >= floor(count($node->getPeers())/2) +1) {
-				Raft_Log::log( sprintf('[%s] is leader', $node->name), 'D');
+				Raft_Logger::log( sprintf('[%s] is leader', $node->name), 'D');
 				$node->transitionToLeader();
 				$node->resetHb();
 				$node->pingPeers();
@@ -50,12 +50,12 @@ class Raft_Msghandler {
 		}
 
 		if ($type == 'ELECT') {
-			Raft_Log::log( sprintf('[%s] got election from %s', $node->name, $from), 'D');
+			Raft_Logger::log( sprintf('[%s] got election from %s', $node->name, $from), 'D');
 			$term = (int)$msg->unwrap();
 			if ($term > $node->currentTerm) {
 				$p = $node->findPeer($from);
 				if (!$p) return;
-				Raft_Log::log( sprintf('[%s] casting vote for %s @t%s', $node->name, $from, $term), 'D');
+				Raft_Logger::log( sprintf('[%s] casting vote for %s @t%s', $node->name, $from, $term), 'D');
 				$p->sendVote($from, $term, 0);
 				$node->currentTerm = $term;
 				$node->state = 'follower';

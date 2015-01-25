@@ -25,7 +25,7 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-class Raft_Log {
+class Raft_Logger {
 
 	public static $logLevel = 'D';
 
