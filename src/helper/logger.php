@@ -45,6 +45,11 @@ class Raft_Logger {
 		if (self::$logLevel == 'D') {
 			//always
 		}
+		if (self::$logLevel == 'X') {
+			//never
+			return;
+		}
+
 
 		printf("[%s] [%s] - %s\n", date('r'), $lvl, $msg);
 	}
