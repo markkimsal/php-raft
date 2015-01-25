@@ -9,7 +9,9 @@ $n1->begin($self);
 sleep(1);
 $listPeers = array();
 foreach ($argv as $_n) {
-	$n1->addPeer($_n);
+	$_p = new Raft_Peernode($_n);
+	$_p->connect();
+	$n1->addPeer($_p);
 }
 $n1->run();
 

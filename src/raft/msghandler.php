@@ -71,7 +71,7 @@ class Raft_Msghandler {
 					return;
 				}
 				Raft_Logger::log( sprintf('[%s] casting vote for %s @t%s', $node->name, $from, $term), 'D');
-				$p->sendVote($from, $term, 0);
+				$p->conn->sendVote($from, $term, 0);
 				$node->currentTerm = $term;
 				$node->state = 'follower';
 				$node->setLeaderNode($from);

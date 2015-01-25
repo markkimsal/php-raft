@@ -29,8 +29,10 @@ define('HB_INTERVAL', 2);
 define('LE_INTERVAL', 1);
 
 include_once(dirname(__FILE__).'/connection.php');
+include_once(dirname(__FILE__).'/peernode.php');
 include_once(dirname(__FILE__).'/peerconnection.php');
 include_once(dirname(__FILE__).'/msghandler.php');
+include_once(dirname(__FILE__).'/rpc/appendentries.php');
 include_once(dirname(__FILE__).'/log.php');
 include_once(dirname(__FILE__).'/zmsg.php');
 include_once(dirname(__FILE__).'/../helper/logger.php');
@@ -80,11 +82,12 @@ class Raft_Node {
 		$this->conn->clusterSocket($endpoint);
 	}
 
-	public function addPeer($endpoint) {
-		Raft_Logger::log(sprintf("[%s] opening router connection to %s ...", $this->name, $endpoint), 'D');
-		$connPeer =  new Raft_PeerConnection();
-		$connPeer->connect($endpoint);
-		$this->listPeers[$endpoint] = $connPeer;
+	public function addPeer($peer) {
+		Raft_Logger::log(sprintf("[%s] opening router connection to %s ...", $this->name, $peer->endpoint), 'D');
+//		$connPeer =  new Raft_PeerConnection();
+//		$connPeer->connect($endpoint);
+		$peer->setNextIndex($this);
+		$this->listPeers[$peer->endpoint] = $peer;
 	}
 
 	public function run() {
@@ -127,7 +130,7 @@ class Raft_Node {
 				$this->transitionToCandidate();
 				foreach ($this->listPeers as $_p) {
 					Raft_Logger::log( sprintf("[%s] sending election to %s", $this->name, $_p->endpoint), 'D');
-					$_p->sendElection($this->conn->endpoint,  $this->currentTerm, 0, 0);
+					$_p->conn->sendElection($this->conn->endpoint,  $this->currentTerm, 0, 0);
 				}
 			}
 
@@ -166,26 +169,10 @@ class Raft_Node {
 		return FALSE;
 	}
 
-	/**
-	 * Save a pending entry
-	 */
-	public function appendEntry($entry, $from) {
-		if (!$this->isLeader()) {
-			$this->conn->replyToClient($from, "FAIL");
-		} else {
-			$this->log->appendEntry($entry, $this->currentTerm);
-			//TODO save client's zmqid to reply after appending entry to raft log
-			$this->log->debugLog();
-		}
-
-//			$this->log->commitEntry();
-//			$this->log->debugLog();
-	}
-
 	public function pingPeers() {
 		foreach ($this->listPeers as $_p) {
 			Raft_Logger::log( sprintf("[%s] sending hb to %s", $this->name, $_p->endpoint), 'D');
-			$_p->hb();
+			$_p->conn->hb();
 		}
 	}
 
@@ -214,5 +201,33 @@ class Raft_Node {
 	public function transitionToLeader() {
 		$this->state = 'leader';
 		$this->votes = 0;
+	}
+
+    /**
+     * Create RPC objects for each connected peer
+     * with the proper parameter for AppendEntries
+     * @return Array list of Raft_Rpc_AppendEntries objects
+     */
+    public function getAppendEntries($entry) {
+        $listPeers = $this->getPeers();
+        $ret = array();
+        foreach ($listPeers as $_p) {
+			$ret[] = Raft_Rpc_AppendEntries::make($_p, $this, $entry);
+        }
+        return $ret;
+    }
+
+	/**
+	 * Save a pending entry
+	 */
+	public function appendEntry($entry, $from) {
+		if (!$this->isLeader()) {
+			$this->conn->replyToClient($from, "FAIL");
+		} else {
+			$this->log->appendEntry($entry, $this->currentTerm);
+			//TODO save client's zmqid to reply after appending entry to raft log
+			$this->log->debugLog();
+		}
+		$listRpc = $this->getAppendEntries($entry);
 	}
 }

@@ -60,7 +60,7 @@ class Raft_Log {
 	}
 
 	public function commitEntry() {
-		$idx = $this->getCommitIndex() +1;
+		$idx = $this->getCommitIndex();
 		$this->logEntry[$idx]   = $this->pendingEntry;
 		$this->logTerm[$idx]    = $this->pendingTerm;
 		$this->logEntry->next();
@@ -68,6 +68,10 @@ class Raft_Log {
 
 		$this->pendingEntry = NULL;
 		$this->pendingTerm  = NULL;
+	}
+
+	public function getTermForIndex($i) {
+		return $this->logTerm[$i];
 	}
 
 	public function debugLog() {
@@ -83,5 +87,6 @@ class Raft_Log {
 				$log .= '.';
 		}
 		Raft_Logger::log($log);
+		return $log;
 	}
 }
