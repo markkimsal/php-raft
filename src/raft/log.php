@@ -81,13 +81,19 @@ class Raft_Log {
 		for ($x=0; $x < 20; $x++) {
 			if ($this->logEntry->offsetExists($x)) {
 				$log .= $this->logTerm->offsetGet($x);
-				$log .= '|';
+				if ($x < $this->uncommittedIndex) {
+					$log .= '.';
+				} else {
+					$log .= '|';
+				}
 			}
 		}
+/*
 		if ($this->pendingEntry != NULL) {
 				$log .= $this->pendingTerm;
 				$log .= '.';
 		}
+*/
 		Raft_Logger::log($log);
 		return $log;
 	}
