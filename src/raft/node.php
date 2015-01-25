@@ -114,8 +114,7 @@ class Raft_Node {
 		if($mt > $this->hb_at) {
 		//Raft_Log::log( sprintf("[%s] %0.4f  %0.4f", $this->name, $mt, $this->hb_at), 'D');
 			if ($this->isFollower() || $this->isCandidate()) {
-				$this->currentTerm++;
-				$this->state = 'candidate';
+				$this->transitionToCandidate();
 				foreach ($this->listPeers as $_p) {
 					Raft_Log::log( sprintf("[%s] sending election to %s", $this->name, $_p->endpoint), 'D');
 					$_p->sendElection($this->conn->endpoint,  $this->currentTerm, 0, 0);
@@ -178,6 +177,17 @@ class Raft_Node {
 
 	public function setLeaderNode($ep) {
 		return $this->leaderNode = $ep;
+	}
+
+	public function transitionToCandidate() {
+		$this->state = 'candidate';
+		$this->currentTerm++;
+		$this->votes = 0;
+	}
+
+	public function transitionToLeader() {
+		$this->state = 'leader';
+		$this->votes = 0;
 	}
 }
 

@@ -43,8 +43,7 @@ class Raft_Msghandler {
 			$node->votes++;
 			if ($node->votes >= floor(count($node->getPeers())/2) +1) {
 				Raft_Log::log( sprintf('[%s] is leader', $node->name), 'D');
-				$node->state = 'leader';
-				$node->votes = 0;
+				$node->transitionToLeader();
 				$node->resetHb();
 				$node->pingPeers();
 			}
