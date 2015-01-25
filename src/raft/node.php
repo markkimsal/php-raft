@@ -224,7 +224,7 @@ class Raft_Node {
 		if (!$this->isLeader()) {
 			$this->conn->replyToClient($from, "FAIL");
 		} else {
-			$this->log->appendEntry($entry, $this->currentTerm);
+			$idx = $this->log->appendEntry($entry, $this->currentTerm);
 			//TODO save client's zmqid to reply after appending entry to raft log
 			$this->log->debugLog();
 		}

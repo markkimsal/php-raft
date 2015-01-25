@@ -35,8 +35,8 @@ class Raft_AppendEntries_Test extends PHPUnit_Framework_TestCase {
 		$peer = new Raft_Peernode($ep);
 		$this->leader->addPeer($peer);
 
-		$this->leader->log->appendEntry('setY', 1);
-		$this->leader->log->commitEntry();
+		$key = $this->leader->log->appendEntry('setY', 1);
+		$this->leader->log->commitEntry($key);
 		$this->leader->log->appendEntry('setY', 2);
 
 //		echo $this->leader->log->debugLog();

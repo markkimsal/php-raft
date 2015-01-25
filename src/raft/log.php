@@ -31,43 +31,45 @@
  */
 class Raft_Log {
 
-	protected $logEntry     = NULL;
-	protected $logTerm      = NULL;
-	protected $commitIndex  = 0;
-	protected $pendingEntry = NULL;
-	protected $pendingTerm  = NULL;
+	protected $logEntry         = NULL;
+	protected $logTerm          = NULL;
+	protected $commitIndex      = 0;
+	protected $uncommittedIndex = 0;
 
 	public function __construct() {
-		$this->logEntry    = new SplFixedArray(1000);
-		$this->logTerm     = new SplFixedArray(1000);
+		$this->logEntry         = new SplFixedArray(1000);
+		$this->logTerm          = new SplFixedArray(1000);
 	}
 
-	public function getPendingEntry() {
-		return $this->pendingEntry ;
+/*
+	public function getPendingEntry($key) {
+		return $this->listPendingEntry[$key];
 	}
 
-	public function getPendingTerm() {
-		return $this->pendingTerm  ;
+	public function getPendingTerm($key) {
+		return $this->listPendingTerm[$key];
 	}
+*/
 
 	public function getCommitIndex() {
 		return $this->logEntry->key();
 	}
 
 	public function appendEntry($entry, $term) {
-		$this->pendingEntry = $entry;
-		$this->pendingTerm  = $term;
+
+		$idx = $this->uncommittedIndex;
+		$this->logEntry[$idx]   = $entry;
+		$this->logTerm[$idx]    = $term;
+		//increment after returning;
+		return $this->uncommittedIndex++;
 	}
 
-	public function commitEntry() {
-		$idx = $this->getCommitIndex();
-		$this->logEntry[$idx]   = $this->pendingEntry;
-		$this->logTerm[$idx]    = $this->pendingTerm;
-		$this->logEntry->next();
-		$this->logTerm->next();
-
-		$this->pendingEntry = NULL;
-		$this->pendingTerm  = NULL;
+	public function commitIndex($idx) {
+		$cidx = $this->getCommitIndex();
+		if ($idx == ++$cidx) {
+			$this->logEntry->next();
+			$this->logTerm->next();
+		}
 	}
 
 	public function getTermForIndex($i) {
@@ -88,5 +90,9 @@ class Raft_Log {
 		}
 		Raft_Logger::log($log);
 		return $log;
+	}
+
+	public function getCountPending() {
+		return $this->uncommittedIndex - $this->getCommitIndex();
 	}
 }
