@@ -31,8 +31,9 @@ define('LE_INTERVAL', 1);
 include_once(dirname(__FILE__).'/connection.php');
 include_once(dirname(__FILE__).'/peerconnection.php');
 include_once(dirname(__FILE__).'/msghandler.php');
-include_once(dirname(__FILE__).'/../helper/logger.php');
+include_once(dirname(__FILE__).'/log.php');
 include_once(dirname(__FILE__).'/zmsg.php');
+include_once(dirname(__FILE__).'/../helper/logger.php');
 
 class Raft_Node {
 
@@ -46,7 +47,7 @@ class Raft_Node {
 
 	public $currentTerm  = 0;
 	public $votedFor     = NULL;
-	public $log          = array();
+	public $log          = NULL;
 
 	/**
 	 * index of highest log entry known to be committed
@@ -71,6 +72,7 @@ class Raft_Node {
 
 		$this->handler = new Raft_Msghandler();
 		$this->conn    = new Raft_Connection();
+		$this->log     = new Raft_Log();
 	}
 
 	public function begin($endpoint) {
