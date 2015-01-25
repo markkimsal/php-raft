@@ -54,7 +54,7 @@ class Raft_Log {
 		return $this->logEntry->key();
 	}
 
-	public function appendEntry($term, $entry) {
+	public function appendEntry($entry, $term) {
 		$this->pendingEntry = $entry;
 		$this->pendingTerm  = $term;
 	}
@@ -68,5 +68,20 @@ class Raft_Log {
 
 		$this->pendingEntry = NULL;
 		$this->pendingTerm  = NULL;
+	}
+
+	public function debugLog() {
+		$log = '';
+		for ($x=0; $x < 20; $x++) {
+			if ($this->logEntry->offsetExists($x)) {
+				$log .= $this->logTerm->offsetGet($x);
+				$log .= '|';
+			}
+		}
+		if ($this->pendingEntry != NULL) {
+				$log .= $this->pendingTerm;
+				$log .= '.';
+		}
+		Raft_Logger::log($log);
 	}
 }

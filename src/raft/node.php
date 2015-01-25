@@ -166,6 +166,22 @@ class Raft_Node {
 		return FALSE;
 	}
 
+	/**
+	 * Save a pending entry
+	 */
+	public function appendEntry($entry, $from) {
+		if (!$this->isLeader()) {
+			$this->conn->replyToClient($from, "FAIL");
+		} else {
+			$this->log->appendEntry($entry, $this->currentTerm);
+			//TODO save client's zmqid to reply after appending entry to raft log
+			$this->log->debugLog();
+		}
+
+//			$this->log->commitEntry();
+//			$this->log->debugLog();
+	}
+
 	public function pingPeers() {
 		foreach ($this->listPeers as $_p) {
 			Raft_Logger::log( sprintf("[%s] sending hb to %s", $this->name, $_p->endpoint), 'D');

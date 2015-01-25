@@ -39,7 +39,7 @@ class Raft_Connection {
 
 	public function clusterSocket($endpoint) {
 		$this->endpoint = $endpoint;
-		$this->sockCluster  = new ZMQSocket($this->ctx, ZMQ::SOCKET_DEALER);
+		$this->sockCluster  = new ZMQSocket($this->ctx, ZMQ::SOCKET_ROUTER);
 		$this->_identity = '';
 		$this->sockCluster->setSockOpt(ZMQ::SOCKOPT_IDENTITY, $this->getIdentity());
 		$this->sockCluster->bind($endpoint);
@@ -78,5 +78,11 @@ class Raft_Connection {
 		$this->sockCluster->send("VOTE", ZMQ::MODE_SNDMORE);
 		$this->sockCluster->send($term, ZMQ::MODE_SNDMORE);
 		$this->sockCluster->send($logTerm);
+	}
+
+	public function replyToClient($id, $answer) {
+		$this->sockCluster->send($id, ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send(NULL, ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send($answer);
 	}
 }

@@ -29,8 +29,17 @@ class Raft_Msghandler {
 
 
 	public function onMsg($msg, $node) {
-		$from = $msg->unwrap();
-		//$null = $msg->unwrap();
+		$from     = $msg->unwrap();
+		//$null   = $msg->unwrap();
+		$type     = $msg->unwrap();
+
+		if ($type == 'REQUEST') {
+			Raft_Logger::log( sprintf('[%s] got request', $node->name), 'D');
+			$node->appendEntry($msg->unwrap(), $from);
+			return;
+		}
+		//clients don't send their endpoint address, only zmqid
+		$from = $type;
 		$type = $msg->unwrap();
 
 		if ($type == 'HEARTBEAT') {
@@ -50,11 +59,17 @@ class Raft_Msghandler {
 		}
 
 		if ($type == 'ELECT') {
-			Raft_Logger::log( sprintf('[%s] got election from %s', $node->name, $from), 'D');
 			$term = (int)$msg->unwrap();
+			if ($term <= $node->currentTerm) {
+				Raft_Logger::log( sprintf('[%s] rejecting old term election %s <= %s from %s', $node->name, $term, $node->currentTerm,  $from), 'D');
+			}
 			if ($term > $node->currentTerm) {
+				Raft_Logger::log( sprintf('[%s] got election from %s', $node->name, $from), 'D');
 				$p = $node->findPeer($from);
-				if (!$p) return;
+				if (!$p) {
+					Raft_Logger::log( sprintf('[%s] cannot find peer %s', $node->name, $from), 'E');
+					return;
+				}
 				Raft_Logger::log( sprintf('[%s] casting vote for %s @t%s', $node->name, $from, $term), 'D');
 				$p->sendVote($from, $term, 0);
 				$node->currentTerm = $term;
