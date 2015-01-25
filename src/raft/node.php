@@ -48,7 +48,15 @@ class Raft_Node {
 	public $votedFor     = NULL;
 	public $log          = array();
 
+	/**
+	 * index of highest log entry known to be committed
+	 * (initialized to 0, increases monotonically)
+	 */
 	public $commitIndex  = 0;
+	/**
+	 * index of highest log entry applied to state machine
+	 * (initialized to 0, increases monotonically)
+	 */
 	public $lastApplied  = 0;
 
 	public $state        = 'follower';
