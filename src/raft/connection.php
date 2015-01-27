@@ -72,17 +72,37 @@ class Raft_Connection {
 	}
 
 
+	/**
+	 * VOTE
+	 * term int
+	 * voteGranted 1|0
+	 */
 	public function sendVote($id, $term, $logTerm) {
 		$this->sockCluster->send($id, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send(NULL, ZMQ::MODE_SNDMORE);
 		$this->sockCluster->send("VOTE", ZMQ::MODE_SNDMORE);
 		$this->sockCluster->send($term, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($logTerm);
+		$this->sockCluster->send(1);
 	}
+
+	/**
+	 * AppendEntriesReply
+	 * identity string
+	 * term int
+	 * success 1|0
+	 * matchIndex int
+	 */
+	public function sendAppendReply($id, $term, $matchIndex) {
+		$this->sockCluster->send($id, ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send("AppendEntriesReply", ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send($this->getIdentity(), ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send($term, ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send(1, ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send($matchIndex);
+	}
+
 
 	public function replyToClient($id, $answer) {
 		$this->sockCluster->send($id, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send(NULL, ZMQ::MODE_SNDMORE);
 		$this->sockCluster->send($answer);
 	}
 }

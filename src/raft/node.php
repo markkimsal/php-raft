@@ -104,6 +104,9 @@ class Raft_Node {
 		$read = $write = array();
 		$poll = new ZMQPoll();
 		$poll->add($this->conn->sockCluster, ZMQ::POLL_IN);
+		foreach ($this->listPeers as $_p) {
+			$poll->add($_p->conn->sockCluster, ZMQ::POLL_IN);
+		}
 
 		$events = $poll->poll($read, $write, HB_INTERVAL * 100 );
 
@@ -119,6 +122,9 @@ class Raft_Node {
 				if($socket === $this->conn->sockCluster) {
 //					Raft_Logger::log( sprintf("[%s] Cluster IN %s", $this->name, $zmsg), 'D' );
 					$this->handler->onMsg($zmsg, $this);
+				} else {
+//					Raft_Logger::log( sprintf("[%s] Cluster IN %s", $this->name, $zmsg), 'D' );
+					$this->handler->onMsgReply($zmsg, $this);
 				}
 			}
 		}
@@ -147,7 +153,7 @@ class Raft_Node {
 		if ($this->isLeader()) {
 			$this->hb_at = $mt + (LE_INTERVAL - (LE_INTERVAL * rand(0.70, 0.90)));
 		} else {
-			$this->hb_at = $mt + (HB_INTERVAL - (HB_INTERVAL * rand(0.0, 0.50)));
+			$this->hb_at = $mt + (HB_INTERVAL - (HB_INTERVAL * rand(0.0, 0.60)));
 		}
 //		Raft_Logger::log( sprintf("[%s] %0.4f  %0.4f *", $this->name, $mt, $this->hb_at), 'D');
 	}
@@ -170,10 +176,19 @@ class Raft_Node {
 	}
 
 	public function pingPeers() {
+		$listRpc = $this->getAppendEntries();
+		foreach ($listRpc as $_rpc) {
+//			$_p->conn->sendRpc($_prc);
+			Raft_Logger::log( sprintf("[%s] sending hb to %s", $this->name, $_rpc->peerNode->endpoint), 'D');
+			$_rpc->peerNode->conn->sendAppendEntries($_rpc);
+		}
+/*
 		foreach ($this->listPeers as $_p) {
 			Raft_Logger::log( sprintf("[%s] sending hb to %s", $this->name, $_p->endpoint), 'D');
+			$_p->
 			$_p->conn->hb();
 		}
+*/
 	}
 
 	public function isFollower() {
@@ -208,11 +223,11 @@ class Raft_Node {
      * with the proper parameter for AppendEntries
      * @return Array list of Raft_Rpc_AppendEntries objects
      */
-    public function getAppendEntries($entry) {
+    public function getAppendEntries() {
         $listPeers = $this->getPeers();
         $ret = array();
         foreach ($listPeers as $_p) {
-			$ret[] = Raft_Rpc_AppendEntries::make($_p, $this, $entry);
+			$ret[] = Raft_Rpc_AppendEntries::make($_p, $this);
         }
         return $ret;
     }
@@ -222,12 +237,13 @@ class Raft_Node {
 	 */
 	public function appendEntry($entry, $from) {
 		if (!$this->isLeader()) {
-			$this->conn->replyToClient($from, "FAIL");
+			//$this->conn->replyToClient($from, "FAIL");
+			$idx = $this->log->appendEntry($entry, $this->currentTerm);
 		} else {
 			$idx = $this->log->appendEntry($entry, $this->currentTerm);
 			//TODO save client's zmqid to reply after appending entry to raft log
 			$this->log->debugLog();
+			$listRpc = $this->getAppendEntries($entry);
 		}
-		$listRpc = $this->getAppendEntries($entry);
 	}
 }

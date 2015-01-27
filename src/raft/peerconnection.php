@@ -58,16 +58,16 @@ class Raft_PeerConnection {
 	}
 
 	public function hb() {
-		$this->sockCluster->send($this->getIdentity(), ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send(NULL, ZMQ::MODE_SNDMORE);
+//		$this->sockCluster->send($this->getIdentity(), ZMQ::MODE_SNDMORE);
+//		$this->sockCluster->send(NULL, ZMQ::MODE_SNDMORE);
 		$this->sockCluster->send("HEARTBEAT");
 		//$this->sockCluster->send("HEARTBEAT", ZMQ::MODE_SNDMORE);
 		//$this->sockCluster->send("", ZMQ::MODE_SNDMORE);
 	}
 
 	public function sendElection($from, $term, $logIdx, $logTerm) {
-		$this->sockCluster->send($from, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send(NULL, ZMQ::MODE_SNDMORE);
+//		$this->sockCluster->send($from, ZMQ::MODE_SNDMORE);
+//		$this->sockCluster->send(NULL, ZMQ::MODE_SNDMORE);
 		$this->sockCluster->send("ELECT", ZMQ::MODE_SNDMORE);
 		$this->sockCluster->send($term, ZMQ::MODE_SNDMORE);
 		$this->sockCluster->send($logIdx, ZMQ::MODE_SNDMORE);
@@ -86,12 +86,29 @@ class Raft_PeerConnection {
 */
 
 	public function sendVote($id, $term, $logTerm) {
-		$this->sockCluster->send($this->getIdentity(), ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send(NULL, ZMQ::MODE_SNDMORE);
+//		$this->sockCluster->send($this->getIdentity(), ZMQ::MODE_SNDMORE);
+//		$this->sockCluster->send(NULL, ZMQ::MODE_SNDMORE);
 		$this->sockCluster->send("VOTE", ZMQ::MODE_SNDMORE);
 		$this->sockCluster->send($term, ZMQ::MODE_SNDMORE);
 //		$this->sockCluster->send($logIdx, ZMQ::MODE_SNDMORE);
 		$this->sockCluster->send($logTerm);
 	}
 
+	public function sendAppendEntries($rpc) {
+		$this->sockCluster->send("AppendEntries", ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send($rpc->term, ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send($rpc->leaderId, ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send($rpc->prevLogIndex, ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send($rpc->prevLogTerm, ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send($rpc->entry);
+	}
+
+	public function replyAppendGood($from, $term, $logIdx, $logTerm) {
+//		$this->sockCluster->send($from, ZMQ::MODE_SNDMORE);
+//		$this->sockCluster->send(NULL, ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send("AppendEntriesReply", ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send($term, ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send($logIdx, ZMQ::MODE_SNDMORE);
+		$this->sockCluster->send($logTerm);
+	}
 }

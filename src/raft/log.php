@@ -55,6 +55,11 @@ class Raft_Log {
 		return $this->logEntry->key();
 	}
 
+	public function getUncommittedIndex() {
+		return $this->uncommittedIndex;
+	}
+
+
 	public function appendEntry($entry, $term) {
 
 		$idx = $this->uncommittedIndex;
@@ -75,6 +80,11 @@ class Raft_Log {
 	public function getTermForIndex($i) {
 		return $this->logTerm[$i];
 	}
+
+	public function getEntryForIndex($i) {
+		return $this->logEntry[$i];
+	}
+
 
 	public function debugLog() {
 		$log = '';
@@ -101,4 +111,5 @@ class Raft_Log {
 	public function getCountPending() {
 		return $this->uncommittedIndex - $this->getCommitIndex();
 	}
+
 }

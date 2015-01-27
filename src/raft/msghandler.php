@@ -27,27 +27,8 @@
 
 class Raft_Msghandler {
 
-
-	public function onMsg($msg, $node) {
-		$from     = $msg->unwrap();
-		//$null   = $msg->unwrap();
-		$type     = $msg->unwrap();
-
-		if ($type == 'REQUEST') {
-			Raft_Logger::log( sprintf('[%s] got request', $node->name), 'D');
-			$node->appendEntry($msg->unwrap(), $from);
-			return;
-		}
-		//clients don't send their endpoint address, only zmqid
-		$from = $type;
-		$type = $msg->unwrap();
-
-		if ($type == 'HEARTBEAT') {
-			$node->resetHb();
-			$node->votes = 0;
-			Raft_Logger::log( sprintf('[%s] got hb', $node->name), 'D');
-		}
-
+	public function onMsgReply($msg, $node) {
+		$type     = $msg->pop();
 		if ($type == 'VOTE') {
 			$node->votes++;
 			if ($node->votes >= floor(count($node->getPeers())/2) +1) {
@@ -57,14 +38,92 @@ class Raft_Msghandler {
 				$node->pingPeers();
 			}
 		}
+		if ($type == 'AppendEntriesReply') {
+			$from       = $msg->pop();
+			$term       = (int)$msg->pop();
+			$success    = (int)$msg->pop();
+			$matchIndex = $msg->pop();
+//TODO this isn't the right comparison
+			if ($matchIndex < $node->log->getCommitIndex()) {
+				$p = $node->findPeer($from);
+				if (!$p) {
+					Raft_Logger::log( sprintf('[%s] cannot find peer %s', $node->name, $from), 'E');
+					return;
+				}
+
+				Raft_Logger::log( sprintf('[%s] leader committing log', $node->name), 'D');
+				$node->log->commitIndex($matchIndex);
+				$node->log->debugLog();
+				$p->matchIndex = (int)$matchIndex;
+				$p->nextIndex  = (int)$matchIndex+1;
+			}
+		}
+	}
+
+	public function onMsg($msg, $node) {
+		$from     = $msg->pop();
+		//$null   = $msg->pop();
+		$type     = $msg->pop();
+
+		if ($type == 'REQUEST') {
+			Raft_Logger::log( sprintf('[%s] got request', $node->name), 'D');
+			$node->appendEntry($msg->pop(), $from);
+			return;
+		}
+
+		if ($type == 'AppendEntries') {
+			$term = (int)$msg->pop();
+			if ($term <= $node->currentTerm) {
+				//TODO: update peer log, respond
+				$node->resetHb();
+				$node->votes = 0;
+				if (!$node->isLeader()) {
+					$leaderId  = $msg->pop();
+					$prevIdx   = (int)$msg->pop();
+					$prevTerm  = $msg->pop();
+					$entry     = $msg->pop();
+					$commitIdx = -1;
+					if ($msg->parts()) {
+						$commitIdx = (int)$msg->pop();
+					}
+					if ($node->log->getTermForIndex($prevIdx) != $prevTerm) {
+						$node->log->debugLog();
+						Raft_Logger::log( sprintf('[%s] reject entry based on term diff \'%s\' \'%s\'', $node->name, $node->log->getTermForIndex($prevIdx), $prevTerm), 'D');
+						return;
+					}
+					Raft_Logger::log( sprintf('[%s] peer updating log', $node->name), 'D');
+					$node->appendEntry($entry, $from);
+					$node->conn->sendAppendReply($from, $term, $node->log->getCommitIndex());
+					if ($commitIdx > -1) {
+						$node->log->commitIndex($commitIdx);
+						$node->log->debugLog();
+					}
+				}
+			} else {
+					Raft_Logger::log( sprintf('[%s] reject entry based on term %d', $node->name, $node->currentTerm), 'D');
+			}
+		}
+
+/*
+		if ($type == 'HEARTBEAT') {
+			$node->resetHb();
+			$node->votes = 0;
+			Raft_Logger::log( sprintf('[%s] got hb', $node->name), 'D');
+		}
+*/
+
 
 		if ($type == 'ELECT') {
-			$term = (int)$msg->unwrap();
+			$term = (int)$msg->pop();
 			if ($term <= $node->currentTerm) {
 				Raft_Logger::log( sprintf('[%s] rejecting old term election %s <= %s from %s', $node->name, $term, $node->currentTerm,  $from), 'D');
 			}
 			if ($term > $node->currentTerm) {
 				Raft_Logger::log( sprintf('[%s] got election from %s', $node->name, $from), 'D');
+
+				Raft_Logger::log( sprintf('[%s] casting vote for %s @t%s', $node->name, $from, $term), 'D');
+				$node->conn->sendVote($from, $term, 0);
+/*
 				$p = $node->findPeer($from);
 				if (!$p) {
 					Raft_Logger::log( sprintf('[%s] cannot find peer %s', $node->name, $from), 'E');
@@ -77,6 +136,7 @@ class Raft_Msghandler {
 				$node->setLeaderNode($from);
 				$node->resetHb();
 				$node->votes++;
+*/
 			}
 		}
 	}
