@@ -123,6 +123,7 @@ class Raft_Msghandler {
 
 				Raft_Logger::log( sprintf('[%s] casting vote for %s @t%s', $node->name, $from, $term), 'D');
 				$node->conn->sendVote($from, $term, 0);
+				$node->currentTerm = $term;
 /*
 				$p = $node->findPeer($from);
 				if (!$p) {
