@@ -91,8 +91,11 @@ class Raft_Msghandler {
 						Raft_Logger::log( sprintf('[%s] reject entry based on term diff \'%s\' \'%s\'', $node->name, $node->log->getTermForIndex($prevIdx), $prevTerm), 'D');
 						return;
 					}
-					Raft_Logger::log( sprintf('[%s] peer updating log', $node->name), 'D');
-					$node->appendEntry($entry, $from);
+					if (!empty($entry)) {
+						Raft_Logger::log( sprintf('[%s] peer updating log', $node->name), 'D');
+						Raft_Logger::log( sprintf('[%s] appending entry', print_r($entry, 1)), 'D');
+						$node->appendEntry($entry, $from);
+					}
 					$node->conn->sendAppendReply($from, $term, $node->log->getCommitIndex());
 					if ($commitIdx > -1) {
 						$node->log->commitIndex($commitIdx);
