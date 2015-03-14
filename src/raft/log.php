@@ -78,7 +78,7 @@ class Raft_Log {
 	}
 
 	public function getTermForIndex($i) {
-		return $this->logTerm[$i];
+		return (int)$this->logTerm[$i];
 	}
 
 	public function getEntryForIndex($i) {
