@@ -94,41 +94,12 @@ class Raft_Node {
 		$running = TRUE;
 
 		while($running) {
+			$running = $this->timer();
 			$running = $this->poll();
 		}
 	}
 
-
-	public function poll() {
-//		Raft_Logger::log( sprintf("[%s] polling wire ...", $this->name), 'D');
-		$read = $write = array();
-		$poll = new ZMQPoll();
-		$poll->add($this->conn->sockCluster, ZMQ::POLL_IN);
-		foreach ($this->listPeers as $_p) {
-			$poll->add($_p->conn->sockCluster, ZMQ::POLL_IN);
-		}
-
-		$events = $poll->poll($read, $write, HB_INTERVAL * 100 );
-
-		if($events > 0) {
-//			Raft_Logger::log( "got events from wire ...", 'D');
-
-			foreach($read as $socket) {
-				$zmsg = new Zmsg($socket);
-				$zmsg->recv();
-
-				// BACKEND
-				//  Handle worker activity on backend
-				if($socket === $this->conn->sockCluster) {
-//					Raft_Logger::log( sprintf("[%s] Cluster IN %s", $this->name, $zmsg), 'D' );
-					$this->handler->onMsg($zmsg, $this);
-				} else {
-//					Raft_Logger::log( sprintf("[%s] Cluster IN %s", $this->name, $zmsg), 'D' );
-					$this->handler->onMsgReply($zmsg, $this);
-				}
-			}
-		}
-
+	public function timer() {
 		$mt = microtime(true);
 		if($mt > $this->hb_at) {
 		//Raft_Logger::log( sprintf("[%s] %0.4f  %0.4f", $this->name, $mt, $this->hb_at), 'D');
@@ -144,6 +115,35 @@ class Raft_Node {
 				$this->pingPeers();
 			}
 			$this->resetHb();
+		}
+		return TRUE;
+	}
+
+	public function poll() {
+//		Raft_Logger::log( sprintf("[%s] polling wire ...", $this->name), 'D');
+		$read = $write = array();
+		$poll = new ZMQPoll();
+		$poll->add($this->conn->sockCluster, ZMQ::POLL_IN);
+		foreach ($this->listPeers as $_p) {
+			$poll->add($_p->conn->sockCluster, ZMQ::POLL_IN);
+		}
+
+		$events = $poll->poll($read, $write, HB_INTERVAL * 100 );
+
+		if($events > 0) {
+			foreach($read as $socket) {
+				$zmsg = new Zmsg($socket);
+				$zmsg->recv();
+
+				// BACKEND
+				//  Handle worker activity on backend
+				if($socket === $this->conn->sockCluster) {
+					$this->handler->onMsg($zmsg, $this);
+				} else {
+//					Raft_Logger::log( sprintf("[%s] Cluster IN %s", $this->name, $zmsg), 'D' );
+					$this->handler->onMsgReply($zmsg, $this);
+				}
+			}
 		}
 		return TRUE;
 	}
