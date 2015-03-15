@@ -1,4 +1,5 @@
 <?php
+include_once(dirname(__FILE__).'/../vendor/autoload.php');
 include(dirname(__FILE__).'/../src/raft/node.php');
 
 array_shift($argv);

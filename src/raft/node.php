@@ -25,9 +25,10 @@
  * DEALINGS IN THE SOFTWARE.
  */
 
-define('HB_INTERVAL', 2);
-define('LE_INTERVAL', 1);
+define('HB_INTERVAL', 2.0);
+define('LE_INTERVAL', 0.9);
 
+include_once(dirname(__FILE__).'/server.php');
 include_once(dirname(__FILE__).'/connection.php');
 include_once(dirname(__FILE__).'/peernode.php');
 include_once(dirname(__FILE__).'/peerconnection.php');
@@ -39,11 +40,10 @@ include_once(dirname(__FILE__).'/../helper/logger.php');
 
 class Raft_Node {
 
-	public $conn          = NULL;
+	public $server        = NULL;
 	public $name          = '';
 	public $votes         = 0;
 	protected $hb_at      = 0.0;
-	protected $listPeers  = array();
 	protected $handler    = NULL;
 	protected $leaderNode = NULL;
 
@@ -73,21 +73,25 @@ class Raft_Node {
 		$this->resetHb();
 
 		$this->handler = new Raft_Msghandler();
-		$this->conn    = new Raft_Connection();
+		$this->server  = new Raft_Server($name);
 		$this->log     = new Raft_Log();
 	}
 
 	public function begin($endpoint) {
 		Raft_Logger::log(sprintf("[%s] binding dealer connection to %s ...", $this->name, $endpoint), 'D');
-		$this->conn->clusterSocket($endpoint);
+		$this->server->joinCluster($endpoint);
+
+		$this->server->on('appendEntries', array($this, 'appendEntries'));
+		$this->server->on('election', array($this, 'election'));
+		$this->server->on('recvVote', array($this, 'recvVote'));
 	}
 
 	public function addPeer($peer) {
 		Raft_Logger::log(sprintf("[%s] opening router connection to %s ...", $this->name, $peer->endpoint), 'D');
 //		$connPeer =  new Raft_PeerConnection();
 //		$connPeer->connect($endpoint);
+		$this->server->addPeer($peer);
 		$peer->setNextIndex($this);
-		$this->listPeers[$peer->endpoint] = $peer;
 	}
 
 	public function run() {
@@ -105,10 +109,7 @@ class Raft_Node {
 		//Raft_Logger::log( sprintf("[%s] %0.4f  %0.4f", $this->name, $mt, $this->hb_at), 'D');
 			if ($this->isFollower() || $this->isCandidate()) {
 				$this->transitionToCandidate();
-				foreach ($this->listPeers as $_p) {
-					Raft_Logger::log( sprintf("[%s] sending election to %s", $this->name, $_p->endpoint), 'D');
-					$_p->conn->sendElection($this->conn->endpoint,  $this->currentTerm, 0, 0);
-				}
+				$this->server->sendElections($this->currentTerm);
 			}
 
 			if ($this->isLeader()) {
@@ -120,32 +121,81 @@ class Raft_Node {
 	}
 
 	public function poll() {
-//		Raft_Logger::log( sprintf("[%s] polling wire ...", $this->name), 'D');
-		$read = $write = array();
-		$poll = new ZMQPoll();
-		$poll->add($this->conn->sockCluster, ZMQ::POLL_IN);
-		foreach ($this->listPeers as $_p) {
-			$poll->add($_p->conn->sockCluster, ZMQ::POLL_IN);
+		return $this->server->poll();
+	}
+
+	public function recvVote($from) {
+		Raft_Logger::log( sprintf('[%s] got vote from  %s', $this->name, $from), 'E');
+		$this->votes++;
+		if ($this->votes >= floor(count($this->getPeers())/2) +1) {
+			Raft_Logger::log( sprintf('[%s] is leader', $this->name), 'D');
+			$this->transitionToLeader();
+			$this->resetHb();
+			$this->pingPeers();
+		}
+	}
+
+	public function appendEntries($term, $leaderId, $prevIdx, $prevTerm, $entry, $commitIdx) {
+
+		if ($term > $this->currentTerm) {
+			Raft_Logger::log( sprintf('[%s] reject entry based on term %d', $this->name, $this->currentTerm), 'D');
+			return;
 		}
 
-		$events = $poll->poll($read, $write, HB_INTERVAL * 100 );
+		//TODO: update peer log, respond
+		$this->resetHb();
+		$this->votes = 0;
+		if (!$this->isLeader()) {
+/*
+			$leaderId  = $msg->pop();
+			$prevIdx   = (int)$msg->pop();
+			$prevTerm  = $msg->pop();
+			$entry     = $msg->pop();
+*/
+/*
+			$commitIdx = -1;
+			if ($msg->parts()) {
+				$commitIdx = (int)$msg->pop();
+			}
+*/
+			if ($this->log->getTermForIndex($prevIdx) != $prevTerm) {
+				$this->log->debugLog();
+				Raft_Logger::log( sprintf('[%s] reject entry based on term diff \'%s\' \'%s\'', $this->name, $this->log->getTermForIndex($prevIdx), $prevTerm), 'D');
+				return;
+			}
+			if (!empty($entry)) {
+				Raft_Logger::log( sprintf('[%s] peer updating log', $this->name), 'D');
+				Raft_Logger::log( sprintf('[%s] appending entry', print_r($entry, 1)), 'D');
+				$this->appendEntry($entry, $from);
+			}
 
-		if($events > 0) {
-			foreach($read as $socket) {
-				$zmsg = new Zmsg($socket);
-				$zmsg->recv();
-
-				// BACKEND
-				//  Handle worker activity on backend
-				if($socket === $this->conn->sockCluster) {
-					$this->handler->onMsg($zmsg, $this);
-				} else {
-//					Raft_Logger::log( sprintf("[%s] Cluster IN %s", $this->name, $zmsg), 'D' );
-					$this->handler->onMsgReply($zmsg, $this);
-				}
+			$this->server->conn->sendAppendReply($term, $this->log->getCommitIndex());
+			if ($commitIdx > -1) {
+				$this->log->commitIndex($commitIdx);
+				$this->log->debugLog();
 			}
 		}
-		return TRUE;
+	}
+
+	public function election($from, $term, $socket) {
+		if ($term <= $this->currentTerm) {
+			Raft_Logger::log( sprintf('[%s] rejecting old term election %s <= %s from %s', $this->name, $term, $this->currentTerm,  $from), 'D');
+			return;
+		}
+		Raft_Logger::log( sprintf('[%s] got election from %s', $this->name, $from), 'D');
+
+		$p = $this->server->findPeerByZmqId($from);
+		if (!$p) {
+			Raft_Logger::log( sprintf('[%s] cannot find peer %s', $this->name, $from), 'E');
+			return;
+		}
+		Raft_Logger::log( sprintf('[%s] casting vote for %s @t%s', $this->name, $from, $term), 'D');
+		$p->conn->sendVote($from, $term, 0);
+		$this->currentTerm = $term;
+		$this->state = 'follower';
+		$this->setLeaderNode($from);
+		$this->resetHb();
+		$this->votes++;
 	}
 
 	public function resetHb() {
@@ -153,7 +203,7 @@ class Raft_Node {
 		if ($this->isLeader()) {
 			$this->hb_at = $mt + (LE_INTERVAL - (LE_INTERVAL * rand(0.70, 0.90)));
 		} else {
-			$this->hb_at = $mt + (HB_INTERVAL - (HB_INTERVAL * rand(0.0, 0.60)));
+			$this->hb_at = $mt + (HB_INTERVAL - (HB_INTERVAL * rand(0.10, 0.40)));
 		}
 //		Raft_Logger::log( sprintf("[%s] %0.4f  %0.4f *", $this->name, $mt, $this->hb_at), 'D');
 	}
@@ -162,7 +212,7 @@ class Raft_Node {
 	 * Return array of nodes joined to this cluster
 	 */
 	public function getPeers() {
-		return $this->listPeers;
+		return $this->server->getPeers();
 	}
 
 	public function findPeer($ep) {

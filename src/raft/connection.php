@@ -91,8 +91,8 @@ class Raft_Connection {
 	 * success 1|0
 	 * matchIndex int
 	 */
-	public function sendAppendReply($id, $term, $matchIndex) {
-		$this->sockCluster->send($id, ZMQ::MODE_SNDMORE);
+	public function sendAppendReply($term, $matchIndex) {
+//		$this->sockCluster->send($id, ZMQ::MODE_SNDMORE);
 		$this->sockCluster->send("AppendEntriesReply", ZMQ::MODE_SNDMORE);
 		$this->sockCluster->send($this->getIdentity(), ZMQ::MODE_SNDMORE);
 		$this->sockCluster->send($term, ZMQ::MODE_SNDMORE);

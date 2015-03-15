@@ -23,4 +23,8 @@ class Raft_Peernode {
 	public function setNextIndex($leaderNode) {
 		$this->nextIndex = $leaderNode->commitIndex+1;
 	}
+
+	public function sayHello($sourceEndpoint) {
+		$this->conn->sendHello($sourceEndpoint);
+	}
 }

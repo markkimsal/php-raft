@@ -27,7 +27,7 @@
 
 class Raft_PeerConnection {
 
-	public $sockCluster = NULL;
+	public $sockDealer = NULL;
 	public $ctx         = NULL;
 	public $_identity   = '';
 
@@ -37,10 +37,10 @@ class Raft_PeerConnection {
 
 	public function connect($endpoint) {
 		$this->endpoint = $endpoint;
-		$this->sockCluster  = new ZMQSocket($this->ctx, ZMQ::SOCKET_DEALER);
-		$this->sockCluster->setSockOpt(ZMQ::SOCKOPT_IDENTITY, $this->getIdentity());
+		$this->sockDealer  = new ZMQSocket($this->ctx, ZMQ::SOCKET_DEALER);
+		$this->sockDealer->setSockOpt(ZMQ::SOCKOPT_IDENTITY, $this->getIdentity());
 		$this->_identity = '';
-		$this->sockCluster->connect($endpoint);
+		$this->sockDealer->connect($endpoint);
 	}
 
 	public function setIdentity($id) { 
@@ -58,57 +58,63 @@ class Raft_PeerConnection {
 	}
 
 	public function hb() {
-//		$this->sockCluster->send($this->getIdentity(), ZMQ::MODE_SNDMORE);
-//		$this->sockCluster->send(NULL, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send("HEARTBEAT");
-		//$this->sockCluster->send("HEARTBEAT", ZMQ::MODE_SNDMORE);
-		//$this->sockCluster->send("", ZMQ::MODE_SNDMORE);
+//		$this->sockDealer->send($this->getIdentity(), ZMQ::MODE_SNDMORE);
+//		$this->sockDealer->send(NULL, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send("HEARTBEAT");
+		//$this->sockDealer->send("HEARTBEAT", ZMQ::MODE_SNDMORE);
+		//$this->sockDealer->send("", ZMQ::MODE_SNDMORE);
+	}
+
+	public function sendHello($gatewayEp) {
+//		$this->sockDealer->send($this->getIdentity(), ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send("HELLO", ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($gatewayEp);
 	}
 
 	public function sendElection($from, $term, $logIdx, $logTerm) {
-//		$this->sockCluster->send($from, ZMQ::MODE_SNDMORE);
-//		$this->sockCluster->send(NULL, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send("ELECT", ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($term, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($logIdx, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($logTerm);
+//		$this->sockDealer->send($from, ZMQ::MODE_SNDMORE);
+//		$this->sockDealer->send(NULL, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send("ELECT", ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($term, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($logIdx, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($logTerm);
 	}
 
 /*
 	public function sendVote($id, $term, $logTerm) {
-		$this->sockCluster->send($this->getIdentity(), ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send(NULL, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send("ELECT", ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($term, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($logIdx, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($logTerm);
+		$this->sockDealer->send($this->getIdentity(), ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send(NULL, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send("ELECT", ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($term, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($logIdx, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($logTerm);
 	}
 */
 
-	public function sendVote($id, $term, $logTerm) {
-//		$this->sockCluster->send($this->getIdentity(), ZMQ::MODE_SNDMORE);
-//		$this->sockCluster->send(NULL, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send("VOTE", ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($term, ZMQ::MODE_SNDMORE);
-//		$this->sockCluster->send($logIdx, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($logTerm);
+	public function sendVote($from, $term, $logTerm) {
+//		$this->sockDealer->send($from, ZMQ::MODE_SNDMORE);
+//		$this->sockDealer->send(NULL, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send("VOTE", ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($term, ZMQ::MODE_SNDMORE);
+//		$this->sockDealer->send($logIdx, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($logTerm);
 	}
 
 	public function sendAppendEntries($rpc) {
-		$this->sockCluster->send("AppendEntries", ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($rpc->term, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($rpc->leaderId, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($rpc->prevLogIndex, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($rpc->prevLogTerm, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($rpc->entry);
+		$this->sockDealer->send("AppendEntries", ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($rpc->term, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($rpc->leaderId, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($rpc->prevLogIndex, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($rpc->prevLogTerm, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($rpc->entry);
 	}
 
 	public function replyAppendGood($from, $term, $logIdx, $logTerm) {
-//		$this->sockCluster->send($from, ZMQ::MODE_SNDMORE);
-//		$this->sockCluster->send(NULL, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send("AppendEntriesReply", ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($term, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($logIdx, ZMQ::MODE_SNDMORE);
-		$this->sockCluster->send($logTerm);
+//		$this->sockDealer->send($from, ZMQ::MODE_SNDMORE);
+//		$this->sockDealer->send(NULL, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send("AppendEntriesReply", ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($term, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($logIdx, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($logTerm);
 	}
 }
