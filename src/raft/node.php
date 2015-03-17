@@ -124,8 +124,21 @@ class Raft_Node {
 		return $this->server->poll();
 	}
 
+	/**
+	 * If you're a candidate (or leader)
+	 * count the number of votes for this term.
+	 * if number of votes is greater than sizeof PeerPool / 2 + 1 then congrats,
+	 * they will welcome their new leader.
+	 */
 	public function recvVote($from) {
-		Raft_Logger::log( sprintf('[%s] got vote from  %s', $this->name, $from), 'E');
+		//don't take votes if you're not a candidate (or leader)
+		if ($this->isFollower()) {
+			Raft_Logger::log( sprintf('[%s] got wild vote from %s when I was just a follower.', $this->name, $from), 'W');
+			return;
+		}
+
+		Raft_Logger::log( sprintf('[%s] got vote from  %s', $this->name, $from), 'D');
+		//TODO count votes per term
 		$this->votes++;
 		if ($this->votes >= floor(count($this->getPeers())/2) +1) {
 			Raft_Logger::log( sprintf('[%s] is leader', $this->name), 'D');
@@ -259,12 +272,16 @@ class Raft_Node {
 
 	public function transitionToCandidate() {
 		$this->state = 'candidate';
-		$this->currentTerm++;
-		$this->votes = 0;
+		$this->nextTerm();
 	}
 
 	public function transitionToLeader() {
 		$this->state = 'leader';
+		$this->votes = 0;
+	}
+
+	public function nextTerm() {
+		$this->currentTerm++;
 		$this->votes = 0;
 	}
 
