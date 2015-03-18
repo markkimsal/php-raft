@@ -148,6 +148,9 @@ class Raft_Node {
 		}
 	}
 
+	/**
+	 * @void
+	 */
 	public function appendEntries($term, $leaderId, $prevIdx, $prevTerm, $entry, $commitIdx) {
 
 		if ($term > $this->currentTerm) {
@@ -158,35 +161,27 @@ class Raft_Node {
 		//TODO: update peer log, respond
 		$this->resetHb();
 		$this->votes = 0;
-		if (!$this->isLeader()) {
-/*
-			$leaderId  = $msg->pop();
-			$prevIdx   = (int)$msg->pop();
-			$prevTerm  = $msg->pop();
-			$entry     = $msg->pop();
-*/
-/*
-			$commitIdx = -1;
-			if ($msg->parts()) {
-				$commitIdx = (int)$msg->pop();
-			}
-*/
-			if ($this->log->getTermForIndex($prevIdx) != $prevTerm) {
-				$this->log->debugLog();
-				Raft_Logger::log( sprintf('[%s] reject entry based on term diff \'%s\' \'%s\'', $this->name, $this->log->getTermForIndex($prevIdx), $prevTerm), 'D');
-				return;
-			}
-			if (!empty($entry)) {
-				Raft_Logger::log( sprintf('[%s] peer updating log', $this->name), 'D');
-				Raft_Logger::log( sprintf('[%s] appending entry', print_r($entry, 1)), 'D');
-				$this->appendEntry($entry, $from);
-			}
+		if ($this->isLeader()) {
+			//we shouldn't get append entries when we're the leader.
+			return;
+		}
 
-			$this->server->conn->sendAppendReply($term, $this->log->getCommitIndex());
-			if ($commitIdx > -1) {
-				$this->log->commitIndex($commitIdx);
-				$this->log->debugLog();
-			}
+		if ($this->log->getTermForIndex($prevIdx) != $prevTerm) {
+			$this->log->debugLog();
+			Raft_Logger::log( sprintf('[%s] reject entry based on term diff \'%s\' \'%s\'', $this->name, $this->log->getTermForIndex($prevIdx), $prevTerm), 'D');
+			return;
+		}
+		if (!empty($entry)) {
+			Raft_Logger::log( sprintf('[%s] peer updating log', $this->name), 'D');
+			Raft_Logger::log( sprintf('[%s] appending entry', print_r($entry, 1)), 'D');
+			$this->appendEntry($entry, $from);
+		}
+
+		$this->server->conn->sendAppendReply($term, $this->log->getCommitIndex());
+
+		if ($commitIdx > -1) {
+			$this->log->commitIndex($commitIdx);
+			$this->log->debugLog();
 		}
 	}
 
