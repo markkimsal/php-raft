@@ -11,8 +11,12 @@ class Raft_Peernode {
 		$this->endpoint = $ep;
 	}
 
-	public function connect() {
-		$this->conn =  new Raft_PeerConnection();
+	public function connect($conn=NULL) {
+		if ($conn === NULL) {
+			$this->conn = new Raft_PeerConnection();
+		} else {
+			$this->conn = $conn;
+		}
 		$this->conn->connect($this->endpoint);
 	}
 

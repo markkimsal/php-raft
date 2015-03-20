@@ -9,6 +9,9 @@ class Raft_AppendEntries_Test extends PHPUnit_Framework_TestCase {
 		$this->ep = 'tcp://127.0.0.1:5581';
 		$peer = new Raft_Peernode($this->ep);
 
+		$conn = $this->getMock('Raft_Peerconnection', array('connect', 'sendHello'));
+		$peer->connect($conn);
+
 		$this->leader = new Raft_Node('S1');
 		$this->leader->transitionToLeader();
 		$this->leader->addPeer($peer);
@@ -23,6 +26,10 @@ class Raft_AppendEntries_Test extends PHPUnit_Framework_TestCase {
 	public function test_append_entries_next_index_is_one_more_than_leader() {
 		$ep = 'tcp://127.0.0.1:5582';
 		$peer = new Raft_Peernode($ep);
+
+		$conn = $this->getMock('Raft_Peerconnection', array('connect', 'sendHello'));
+		$peer->connect($conn);
+
 		$this->leader->addPeer($peer);
 
 		$listRpc = $this->leader->getAppendEntries('setX');
@@ -33,6 +40,9 @@ class Raft_AppendEntries_Test extends PHPUnit_Framework_TestCase {
 	public function test_append_entries_prev_term_comes_from_peer_not_leader() {
 		$ep = 'tcp://127.0.0.1:5582';
 		$peer = new Raft_Peernode($ep);
+		$conn = $this->getMock('Raft_Peerconnection', array('connect', 'sendHello'));
+		$peer->connect($conn);
+
 		$this->leader->addPeer($peer);
 
 		$key = $this->leader->log->appendEntry('setY', 1);
