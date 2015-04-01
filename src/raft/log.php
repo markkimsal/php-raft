@@ -39,6 +39,8 @@ class Raft_Log {
 	public function __construct() {
 		$this->logEntry         = new SplFixedArray(1000);
 		$this->logTerm          = new SplFixedArray(1000);
+		//starting term is always 1
+		$this->logTerm[0] = 1;
 	}
 
 /*
