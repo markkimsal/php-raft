@@ -82,6 +82,7 @@ class Raft_Node {
 		$this->server->joinCluster($endpoint);
 
 		$this->server->on('appendEntries', array($this, 'appendEntries'));
+		$this->server->on('clientRequest', array($this, 'clientRequest'));
 		$this->server->on('election', array($this, 'election'));
 		$this->server->on('recvVote', array($this, 'recvVote'));
 	}
@@ -163,18 +164,19 @@ class Raft_Node {
 		$this->votes = 0;
 		if ($this->isLeader()) {
 			//we shouldn't get append entries when we're the leader.
+			Raft_Logger::log( sprintf('[%s] reject appendEntries because we are the leader. aren\'t we?', $this->name), 'E');
 			return;
 		}
 
 		if ($this->log->getTermForIndex($prevIdx) != $prevTerm) {
 			$this->log->debugLog();
-			Raft_Logger::log( sprintf('[%s] reject entry based on term diff \'%s\' \'%s\'', $this->name, $this->log->getTermForIndex($prevIdx), $prevTerm), 'D');
+			Raft_Logger::log( sprintf('[%s] reject entry based on term diff - my prev term:\'%s\' leader prev term:\'%s\' leader prev idx: \'%s\'', $this->name, $this->log->getTermForIndex($prevIdx), $prevTerm, $prevIdx), 'D');
 			return;
 		}
 		if (!empty($entry)) {
 			Raft_Logger::log( sprintf('[%s] peer updating log', $this->name), 'D');
-			Raft_Logger::log( sprintf('[%s] appending entry', print_r($entry, 1)), 'D');
-			$this->appendEntry($entry, $from);
+			Raft_Logger::log( sprintf('[%s] appending entry %s', $this->name, print_r($entry, 1)), 'D');
+			$this->appendEntry($entry, 'from');
 		}
 
 		$this->server->conn->sendAppendReply($term, $this->log->getCommitIndex());
@@ -184,6 +186,16 @@ class Raft_Node {
 			$this->log->debugLog();
 		}
 	}
+
+	/**
+	 * @void
+	 */
+	public function clientRequest($body, $from) {
+		Raft_Logger::log( sprintf('[%s] client request %s', $this->name, print_r($body,1)), 'D');
+		//TODO: if leader
+		$this->appendEntry($body, $from);
+	}
+
 
 	public function election($from, $term, $socket) {
 		if ($term <= $this->currentTerm) {
@@ -285,11 +297,11 @@ class Raft_Node {
      * with the proper parameter for AppendEntries
      * @return Array list of Raft_Rpc_AppendEntries objects
      */
-    public function getAppendEntries() {
+    public function getAppendEntries($entry=NULL) {
         $listPeers = $this->getPeers();
         $ret = array();
         foreach ($listPeers as $_p) {
-			$ret[] = Raft_Rpc_AppendEntries::make($_p, $this);
+			$ret[] = Raft_Rpc_AppendEntries::make($_p, $this, $entry);
         }
         return $ret;
     }
@@ -306,6 +318,11 @@ class Raft_Node {
 			//TODO save client's zmqid to reply after appending entry to raft log
 			$this->log->debugLog();
 			$listRpc = $this->getAppendEntries($entry);
+			foreach ($listRpc as $_rpc) {
+				Raft_Logger::log( sprintf("[%s] sending AE to %s", $this->name, $_rpc->peerNode->endpoint), 'D');
+				$_rpc->peerNode->conn->sendAppendEntries($_rpc);
+			}
+
 		}
 	}
 }
