@@ -209,9 +209,9 @@ class Raft_Node {
 	public function resetHb() {
 		$mt = microtime(true);
 		if ($this->isLeader()) {
-			$this->hb_at = $mt + (LE_INTERVAL - (LE_INTERVAL * rand(0.70, 0.90)));
+			$this->hb_at = $mt + (LE_INTERVAL - (LE_INTERVAL * rand(0.10, 0.50)));
 		} else {
-			$this->hb_at = $mt + (HB_INTERVAL - (HB_INTERVAL * rand(0.10, 0.40)));
+			$this->hb_at = $mt + (HB_INTERVAL - (HB_INTERVAL * rand(0.10, 0.50)));
 		}
 //		Raft_Logger::log( sprintf("[%s] %0.4f  %0.4f *", $this->name, $mt, $this->hb_at), 'D');
 	}

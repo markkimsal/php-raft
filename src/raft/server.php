@@ -3,7 +3,7 @@
 
 class Raft_Server {
 
-use Evenement\EventEmitterTrait;
+use \Evenement\EventEmitterTrait;
 
 	public $conn         = NULL;
 	public $name         = '';
@@ -30,7 +30,10 @@ use Evenement\EventEmitterTrait;
 			$poll->add($_p->conn->sockDealer, ZMQ::POLL_IN);
 		}
 
-		$events = $poll->poll($read, $write, HB_INTERVAL * 100 );
+		//if this interval is over HB_INTERVAL * 100 then it interferes
+		//with the timer jitter and all nodes respond to timeouts at the
+		//same time.
+		$events = $poll->poll($read, $write, HB_INTERVAL * 50 );
 
 		if($events > 0) {
 			foreach($read as $socket) {
