@@ -100,13 +100,22 @@ class Raft_PeerConnection {
 		$this->sockDealer->send($logTerm);
 	}
 
-	public function sendAppendEntries($rpc) {
+	public function sendHeartbeat($term, $leaderId, $prevIndex, $prevTerm) {
 		$this->sockDealer->send("AppendEntries", ZMQ::MODE_SNDMORE);
-		$this->sockDealer->send($rpc->term, ZMQ::MODE_SNDMORE);
-		$this->sockDealer->send($rpc->leaderId, ZMQ::MODE_SNDMORE);
-		$this->sockDealer->send($rpc->prevLogIndex, ZMQ::MODE_SNDMORE);
-		$this->sockDealer->send($rpc->prevLogTerm, ZMQ::MODE_SNDMORE);
-		$this->sockDealer->send($rpc->entry);
+		$this->sockDealer->send($term, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($leaderId, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($prevIndex, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($prevTerm, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send(null);
+	}
+
+	public function sendAppendEntries($term, $leaderId, $prevIndex, $prevTerm, $entry) {
+		$this->sockDealer->send("AppendEntries", ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($term, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($leaderId, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($prevIndex, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($prevTerm, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($entry);
 	}
 
 	public function replyAppendGood($from, $term, $logIdx, $logTerm) {

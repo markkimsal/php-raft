@@ -33,7 +33,6 @@ include_once(dirname(__FILE__).'/connection.php');
 include_once(dirname(__FILE__).'/peernode.php');
 include_once(dirname(__FILE__).'/peerconnection.php');
 include_once(dirname(__FILE__).'/msghandler.php');
-include_once(dirname(__FILE__).'/rpc/appendentries.php');
 include_once(dirname(__FILE__).'/log.php');
 include_once(dirname(__FILE__).'/zmsg.php');
 include_once(dirname(__FILE__).'/../helper/logger.php');
@@ -245,22 +244,6 @@ class Raft_Node {
 		return FALSE;
 	}
 
-	public function pingPeers() {
-		$listRpc = $this->getAppendEntries();
-		foreach ($listRpc as $_rpc) {
-//			$_p->conn->sendRpc($_prc);
-			Raft_Logger::log( sprintf("[%s] sending hb to %s", $this->name, $_rpc->peerNode->endpoint), 'D');
-			$_rpc->peerNode->conn->sendAppendEntries($_rpc);
-		}
-/*
-		foreach ($this->listPeers as $_p) {
-			Raft_Logger::log( sprintf("[%s] sending hb to %s", $this->name, $_p->endpoint), 'D');
-			$_p->
-			$_p->conn->hb();
-		}
-*/
-	}
-
 	public function isFollower() {
 		return $this->state == 'follower';
 	}
@@ -308,21 +291,41 @@ class Raft_Node {
 
 	/**
 	 * Save a pending entry
+	 * @void
 	 */
 	public function appendEntry($entry, $from) {
 		if (!$this->isLeader()) {
 			//$this->conn->replyToClient($from, "FAIL");
 			$idx = $this->log->appendEntry($entry, $this->currentTerm);
-		} else {
-			$idx = $this->log->appendEntry($entry, $this->currentTerm);
-			//TODO save client's zmqid to reply after appending entry to raft log
-			$this->log->debugLog();
-			$listRpc = $this->getAppendEntries($entry);
-			foreach ($listRpc as $_rpc) {
-				Raft_Logger::log( sprintf("[%s] sending AE to %s", $this->name, $_rpc->peerNode->endpoint), 'D');
-				$_rpc->peerNode->conn->sendAppendEntries($_rpc);
-			}
+			return;
+		}
 
+		//if client wants us to append an entry, then tell quorum about it and commit
+
+		$idx = $this->log->appendEntry($entry, $this->currentTerm);
+		//TODO save client's zmqid to reply after appending entry to raft log
+		$this->log->debugLog();
+		foreach ($this->getPeers() as $_peer) {
+			Raft_Logger::log( sprintf("[%s] sending AE to %s", $this->name, $_peer->endpoint), 'D');
+			$_peer->conn->sendAppendEntries(
+				$this->currentTerm,
+				$this->server->endpoint,
+				$_peer->nextIndex - 1,
+				$this->log->getTermForIndex($_peer->nextIndex - 1),
+				$entry
+			);
+		}
+	}
+
+	public function pingPeers() {
+		foreach ($this->getPeers() as $_peer) {
+			Raft_Logger::log( sprintf("[%s] sending hb to %s", $this->name, $_peer->endpoint), 'D');
+			$_peer->conn->sendHeartbeat(
+				$this->currentTerm,
+				$this->server->endpoint,
+				$_peer->nextIndex - 1,
+				$this->log->getTermForIndex($_peer->nextIndex - 1)
+			);
 		}
 	}
 }
