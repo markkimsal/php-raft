@@ -33,14 +33,12 @@ class Raft_Log {
 
 	protected $logEntry         = NULL;
 	protected $logTerm          = NULL;
-	protected $commitIndex      = 0;
-	protected $uncommittedIndex = 0;
+	protected $commitIndex      = 1;
+	protected $uncommittedIndex = 1;
 
 	public function __construct() {
 		$this->logEntry         = new SplFixedArray(1000);
 		$this->logTerm          = new SplFixedArray(1000);
-		//starting term is always 1
-		$this->logTerm[0] = 1;
 	}
 
 /*
