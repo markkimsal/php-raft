@@ -109,13 +109,30 @@ class Raft_PeerConnection {
 		$this->sockDealer->send(null);
 	}
 
-	public function sendAppendEntries($term, $leaderId, $prevIndex, $prevTerm, $entry) {
+	public function sendAppendEntries($ipfrom, $term, $leaderId, $prevIndex, $prevTerm, $entry) {
 		$this->sockDealer->send("AppendEntries", ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($ipfrom, ZMQ::MODE_SNDMORE);
 		$this->sockDealer->send($term, ZMQ::MODE_SNDMORE);
 		$this->sockDealer->send($leaderId, ZMQ::MODE_SNDMORE);
 		$this->sockDealer->send($prevIndex, ZMQ::MODE_SNDMORE);
 		$this->sockDealer->send($prevTerm, ZMQ::MODE_SNDMORE);
 		$this->sockDealer->send($entry);
+	}
+
+	/**
+	 * AppendEntriesReply
+	 * identity string
+	 * term int
+	 * success 1|0
+	 * matchIndex int
+	 */
+	public function sendAppendReply($term, $matchIndex) {
+//		$this->sockCluster->send($id, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send("AppendEntriesReply", ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($this->getIdentity(), ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($term, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send(1, ZMQ::MODE_SNDMORE);
+		$this->sockDealer->send($matchIndex);
 	}
 
 	public function replyAppendGood($from, $term, $logIdx, $logTerm) {

@@ -108,7 +108,8 @@ use \Evenement\EventEmitterTrait;
 		}
 
 		if ($type == 'AppendEntries') {
-			$term = (int)$zmsg->pop();
+			$ipfrom    = $zmsg->pop();
+			$term      = (int)$zmsg->pop();
 			$commitIdx = -1;
 			$args = array(
 				$term,
@@ -116,7 +117,8 @@ use \Evenement\EventEmitterTrait;
 				$zmsg->pop(),
 				(int)$zmsg->pop(),
 				$zmsg->pop(),
-				$zmsg->pop()
+				$zmsg->pop(),
+				$ipfrom
 			);
 			if ($zmsg->parts()) {
 				$commitIdx = (int)$zmsg->pop();
@@ -130,6 +132,22 @@ use \Evenement\EventEmitterTrait;
 			$this->emit('election', array(
 				$from, $term, $socket
 			));
+
+		}
+
+		if ($type == 'AppendEntriesReply') {
+			$from       = $zmsg->pop();
+			$term       = (int)$zmsg->pop();
+			$success    = (int)$zmsg->pop();
+			$matchIndex = $zmsg->pop();
+
+			$args = array(
+				$from,
+				$term,
+				$success,
+				$matchIndex
+			);
+			$this->emit('appendEntriesReply', $args);
 
 		}
 	}

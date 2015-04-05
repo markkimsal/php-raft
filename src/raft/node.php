@@ -80,10 +80,11 @@ class Raft_Node {
 		Raft_Logger::log(sprintf("[%s] binding dealer connection to %s ...", $this->name, $endpoint), 'D');
 		$this->server->joinCluster($endpoint);
 
-		$this->server->on('appendEntries', array($this, 'appendEntries'));
-		$this->server->on('clientRequest', array($this, 'clientRequest'));
-		$this->server->on('election', array($this, 'election'));
-		$this->server->on('recvVote', array($this, 'recvVote'));
+		$this->server->on('appendEntries',      array($this, 'appendEntries'));
+		$this->server->on('appendEntriesReply', array($this, 'appendEntriesReply'));
+		$this->server->on('clientRequest',      array($this, 'clientRequest'));
+		$this->server->on('election',           array($this, 'election'));
+		$this->server->on('recvVote',           array($this, 'recvVote'));
 	}
 
 	public function addPeer($peer) {
@@ -151,7 +152,7 @@ class Raft_Node {
 	/**
 	 * @void
 	 */
-	public function appendEntries($term, $leaderId, $prevIdx, $prevTerm, $entry, $commitIdx) {
+	public function appendEntries($term, $leaderId, $prevIdx, $prevTerm, $entry, $commitIdx, $endpoint) {
 
 		if ($term > $this->currentTerm) {
 			Raft_Logger::log( sprintf('[%s] reject entry based on term %d', $this->name, $this->currentTerm), 'D');
@@ -172,13 +173,16 @@ class Raft_Node {
 			Raft_Logger::log( sprintf('[%s] reject entry based on term diff - my prev term:\'%s\' leader prev term:\'%s\' leader prev idx: \'%s\'', $this->name, $this->log->getTermForIndex($prevIdx), $prevTerm, $prevIdx), 'D');
 			return;
 		}
-		if (!empty($entry)) {
-			Raft_Logger::log( sprintf('[%s] peer updating log', $this->name), 'D');
-			Raft_Logger::log( sprintf('[%s] appending entry %s', $this->name, print_r($entry, 1)), 'D');
-			$this->appendEntry($entry, 'from');
+
+		if (empty($entry)) {
+			return;
 		}
 
-		$this->server->conn->sendAppendReply($term, $this->log->getCommitIndex());
+		Raft_Logger::log( sprintf('[%s] appending entry %s from %s', $this->name, print_r($entry, 1), $endpoint), 'D');
+
+		$this->appendEntry($entry, 'from');
+		$peer = $this->findPeer($endpoint);
+		$peer->conn->sendAppendReply($this->currentTerm, $this->log->getCommitIndex());
 
 		if ($commitIdx > -1) {
 			$this->log->commitIndex($commitIdx);
@@ -294,7 +298,9 @@ class Raft_Node {
 	 * @void
 	 */
 	public function appendEntry($entry, $from) {
+		//TODO save client's zmqid to reply after appending entry to raft log
 		if (!$this->isLeader()) {
+			//Raft_Logger::log( sprintf("[%s] AE %s from  %s", $this->name, $entry, $from), 'D');
 			//$this->conn->replyToClient($from, "FAIL");
 			$idx = $this->log->appendEntry($entry, $this->currentTerm);
 			return;
@@ -303,17 +309,36 @@ class Raft_Node {
 		//if client wants us to append an entry, then tell quorum about it and commit
 
 		$idx = $this->log->appendEntry($entry, $this->currentTerm);
-		//TODO save client's zmqid to reply after appending entry to raft log
 		$this->log->debugLog();
 		foreach ($this->getPeers() as $_peer) {
 			Raft_Logger::log( sprintf("[%s] sending AE to %s", $this->name, $_peer->endpoint), 'D');
 			$_peer->conn->sendAppendEntries(
+				$this->server->endpoint,
 				$this->currentTerm,
 				$this->server->endpoint,
 				$_peer->nextIndex - 1,
 				$this->log->getTermForIndex($_peer->nextIndex - 1),
 				$entry
 			);
+		}
+	}
+
+	public function appendEntriesReply($from, $term, $success, $matchIndex) {
+
+			Raft_Logger::log( sprintf('[%s] got reply from peer %s', $this->name, $from), 'D');
+//TODO this isn't the right comparison
+		if ($matchIndex < $this->log->getCommitIndex()) {
+			$p = $this->findPeer($from);
+			if (!$p) {
+				Raft_Logger::log( sprintf('[%s] cannot find peer %s', $this->name, $from), 'E');
+				return;
+			}
+
+			Raft_Logger::log( sprintf('[%s] leader committing log', $this->name), 'D');
+			$this->log->commitIndex($matchIndex);
+			$this->log->debugLog();
+			$p->matchIndex = (int)$matchIndex;
+			$p->nextIndex  = (int)$matchIndex+1;
 		}
 	}
 
