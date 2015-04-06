@@ -324,9 +324,13 @@ class Raft_Node {
 	}
 
 	public function appendEntriesReply($from, $term, $success, $matchIndex) {
+		if (!$this->isLeader()) {
+			Raft_Logger::log( sprintf('[%s] got append entries reply when not leader', $this->name), 'E');
+			return;
+		}
 
-			Raft_Logger::log( sprintf('[%s] got reply from peer %s', $this->name, $from), 'D');
-//TODO this isn't the right comparison
+		Raft_Logger::log( sprintf('[%s] got reply from peer %s', $this->name, $from), 'D');
+		//TODO this isn't the right comparison
 		if ($matchIndex < $this->log->getCommitIndex()) {
 			$p = $this->findPeer($from);
 			if (!$p) {
